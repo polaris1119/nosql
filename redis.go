@@ -1,6 +1,7 @@
 package nosql
 
 import (
+	"log"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -16,7 +17,8 @@ func init() {
 	var err error
 	redisConfig, err = ConfigFile.GetSection("redis")
 	if err != nil {
-		panic(err)
+		log.Println("config parse redis section error:", err)
+		return
 	}
 
 	KeyPrefix = redisConfig["prefix"]
