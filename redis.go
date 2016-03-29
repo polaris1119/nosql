@@ -75,6 +75,10 @@ func redisDialTimeout(configMap map[string]string) (redis.Conn, error) {
 		return conn, err
 	}
 
+	if configMap["password"] == "" {
+		return conn, nil
+	}
+
 	if _, err = conn.Do("AUTH", configMap["password"]); err != nil {
 		conn.Close()
 		return conn, err
@@ -204,7 +208,9 @@ func (this *RedisClient) HSCAN(key string, cursor interface{}, optionArgs ...int
 }
 
 func (this *RedisClient) Close() {
-	this.Conn.Close()
+	if this.Conn != nil {
+		this.Conn.Close()
+	}
 }
 
 func (this *RedisClient) key(key string) string {
