@@ -22,6 +22,8 @@ func init() {
 	}
 
 	KeyPrefix = redisConfig["prefix"]
+
+	pool = newPool(redisConfig)
 }
 
 var KeyPrefix = ""
@@ -29,23 +31,70 @@ var KeyPrefix = ""
 type RedisClient struct {
 	redis.Conn
 	err error
+
+	NoPrefix bool
 }
 
+// NewRedisClient 通过 [redis] 配置获取 redis 连接实例
 func NewRedisClient() *RedisClient {
-	connTimeout := time.Duration(goutils.MustInt(redisConfig["conn_timeout"], 0)) * time.Second
-	readTimeout := time.Duration(goutils.MustInt(redisConfig["read_timeout"], 0)) * time.Second
-	writeTimeout := time.Duration(goutils.MustInt(redisConfig["write_timeout"], 0)) * time.Second
+	return newRedisClient(redisConfig)
+}
 
-	conn, err := redis.DialTimeout("tcp", redisConfig["host"]+":"+redisConfig["port"], connTimeout, readTimeout, writeTimeout)
+// NewRedisClientWithSection 通过传递进来的 section 配置获取 redis 连接实例
+func NewRedisClientWithSection(section string) *RedisClient {
+	sectionConfig, err := ConfigFile.GetSection(section)
 	if err != nil {
-		return &RedisClient{Conn: conn, err: err}
+		return &RedisClient{err: err}
 	}
+	return newRedisClient(sectionConfig)
+}
 
-	if _, err = conn.Do("AUTH", redisConfig["password"]); err != nil {
-		return &RedisClient{Conn: conn, err: err}
+var pool *redis.Pool
+
+// NewRedisFromPool 使用连接池（只支持主 redis 实例）
+func NewRedisFromPool() *RedisClient {
+	return &RedisClient{Conn: pool.Get()}
+}
+
+func newRedisClient(configMap map[string]string) *RedisClient {
+	conn, err := redisDialTimeout(configMap)
+	if err != nil {
+		return &RedisClient{err: err}
 	}
 
 	return &RedisClient{Conn: conn, err: nil}
+}
+
+func redisDialTimeout(configMap map[string]string) (redis.Conn, error) {
+	connTimeout := time.Duration(goutils.MustInt(configMap["conn_timeout"], 0)) * time.Second
+	readTimeout := time.Duration(goutils.MustInt(configMap["read_timeout"], 0)) * time.Second
+	writeTimeout := time.Duration(goutils.MustInt(configMap["write_timeout"], 0)) * time.Second
+
+	conn, err := redis.DialTimeout("tcp", configMap["host"]+":"+configMap["port"], connTimeout, readTimeout, writeTimeout)
+	if err != nil {
+		return conn, err
+	}
+
+	if _, err = conn.Do("AUTH", configMap["password"]); err != nil {
+		conn.Close()
+		return conn, err
+	}
+
+	return conn, nil
+}
+
+func newPool(configMap map[string]string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     goutils.MustInt(configMap["max_idle"]),
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			return redisDialTimeout(configMap)
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
 }
 
 func (this *RedisClient) SET(key string, val interface{}, expireSeconds int) error {
@@ -53,7 +102,7 @@ func (this *RedisClient) SET(key string, val interface{}, expireSeconds int) err
 		return this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	args := redis.Args{}.Add(key, val)
 	if expireSeconds != 0 {
@@ -68,7 +117,7 @@ func (this *RedisClient) GET(key string) string {
 		return ""
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	val, err := redis.String(this.Conn.Do("GET", key))
 	if err != nil {
@@ -83,7 +132,7 @@ func (this *RedisClient) DEL(key string) error {
 		return this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	_, err := redis.Int(this.Conn.Do("DEL", key))
 
@@ -95,7 +144,7 @@ func (this *RedisClient) HSET(key, field, val string) error {
 		return this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	_, err := redis.Int(this.Conn.Do("HSET", key, field, val))
 	return err
@@ -105,7 +154,7 @@ func (this *RedisClient) HGETALL(key string) (map[string]string, error) {
 	if this.err != nil {
 		return nil, this.err
 	}
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	return redis.StringMap(this.Conn.Do("HGETALL", key))
 }
@@ -115,7 +164,7 @@ func (this *RedisClient) INCR(key string) (int64, error) {
 		return 0, this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	return redis.Int64(this.Conn.Do("INCR", key))
 }
@@ -125,7 +174,7 @@ func (this *RedisClient) HDEL(key, field string) error {
 		return this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	_, err := redis.Int(this.Conn.Do("HDEL", key, field))
 
@@ -137,7 +186,7 @@ func (this *RedisClient) HSCAN(key string, cursor interface{}, optionArgs ...int
 		return 0, nil, this.err
 	}
 
-	key = KeyPrefix + key
+	key = this.key(key)
 
 	args := redis.Args{}.Add(key, cursor).AddFlat(optionArgs)
 	result, err := redis.Values(this.Conn.Do("HSCAN", args...))
@@ -156,4 +205,12 @@ func (this *RedisClient) HSCAN(key string, cursor interface{}, optionArgs ...int
 
 func (this *RedisClient) Close() {
 	this.Conn.Close()
+}
+
+func (this *RedisClient) key(key string) string {
+	if this.NoPrefix {
+		return key
+	}
+
+	return KeyPrefix + key
 }
