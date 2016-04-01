@@ -117,14 +117,14 @@ func (this *LRUCache) Len() int {
 
 func (this *LRUCache) Remove(key interface{}) {
 	this.locker.Lock()
-	defer this.locker.Lock()
+	defer this.locker.Unlock()
 
 	this.Cache.Remove(lru.Key(key))
 }
 
 func (this *LRUCache) RemoveOldest() {
 	this.locker.Lock()
-	defer this.locker.Lock()
+	defer this.locker.Unlock()
 
 	this.Cache.RemoveOldest()
 }
