@@ -79,6 +79,13 @@ func (this *LRUCache) CompressAndAdd(key interface{}, value []byte, compressor C
 	this.locker.Lock()
 	defer this.locker.Unlock()
 
+	defer func() {
+		// 避免 cache 中对象被 gc
+		if err := recover(); err != nil {
+			logger.Errorln("lru RemoveOldest panic:", err)
+		}
+	}()
+
 	if err := compressor.Compress(value); err != nil {
 		return
 	}
