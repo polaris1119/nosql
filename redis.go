@@ -110,7 +110,7 @@ func (this *RedisClient) SET(key string, val interface{}, expireSeconds int) err
 
 	args := redis.Args{}.Add(key, val)
 	if expireSeconds != 0 {
-		args = args.Add("EX").Add(expireSeconds)
+		args.Add("EX").Add(expireSeconds)
 	}
 	_, err := redis.String(this.Conn.Do("SET", args...))
 	return err
@@ -129,6 +129,18 @@ func (this *RedisClient) GET(key string) string {
 	}
 
 	return val
+}
+
+func (this *RedisClient) EXPIRE(key string, expireSeconds int) error {
+	if this.err != nil {
+		return this.err
+	}
+
+	key = this.key(key)
+
+	_, err := redis.Int(this.Conn.Do("EXPIRE", key, expireSeconds))
+
+	return err
 }
 
 func (this *RedisClient) DEL(key string) error {
@@ -205,6 +217,85 @@ func (this *RedisClient) HSCAN(key string, cursor interface{}, optionArgs ...int
 	data, err := redis.StringMap(result[1], nil)
 
 	return newCursor, data, err
+}
+
+func (this *RedisClient) ZADD(key string, score, member interface{}, optionArgs ...interface{}) error {
+	if this.err != nil {
+		return this.err
+	}
+
+	key = this.key(key)
+
+	args := redis.Args{}.Add(key).AddFlat(optionArgs)
+	_, err := redis.Int(this.Conn.Do("ZADD", args...))
+	return err
+}
+
+func (this *RedisClient) ZINCRBY(key string, increment, member interface{}) error {
+	if this.err != nil {
+		return this.err
+	}
+
+	key = this.key(key)
+
+	_, err := redis.String(this.Conn.Do("ZINCRBY", key, increment, member))
+
+	return err
+}
+
+// zset 数据结构附加的参数
+type ZSetArgs struct {
+	Weights   []int
+	Aggregate string
+}
+
+const (
+	AggregateSum = "SUM"
+	AggregateMin = "MIN"
+	AggregateMax = "MAX"
+)
+
+func (this *RedisClient) ZUNIONSTORE(dest string, keyNum int, keys []string, zsetArgs *ZSetArgs) error {
+	if this.err != nil {
+		return this.err
+	}
+
+	dest = this.key(dest)
+
+	args := redis.Args{}.Add(dest, keyNum).AddFlat(keys)
+	if zsetArgs != nil {
+		if len(zsetArgs.Weights) == len(keys) {
+			args = args.AddFlat(zsetArgs.Weights)
+		}
+		if zsetArgs.Aggregate != "" {
+			args = args.Add(zsetArgs.Aggregate)
+		}
+	}
+	_, err := redis.Int(this.Conn.Do("ZUNIONSTORE", args...))
+	return err
+}
+
+func (this *RedisClient) ZREVRANGE(key string, start, stop int, withscores bool) ([]interface{}, error) {
+	return this.zrange("ZREVRANGE", key, start, stop, withscores)
+}
+
+func (this *RedisClient) ZRANGE(key string, start, stop int, withscores bool) ([]interface{}, error) {
+	return this.zrange("ZRANGE", key, start, stop, withscores)
+}
+
+func (this *RedisClient) zrange(command, key string, start, stop int, withscores bool) ([]interface{}, error) {
+	if this.err != nil {
+		return nil, this.err
+	}
+
+	key = this.key(key)
+
+	args := redis.Args{}.Add(key, start, stop)
+	if withscores {
+		args.Add("WITHSCORES")
+	}
+
+	return redis.Values(this.Conn.Do(command, args...))
 }
 
 func (this *RedisClient) Close() {
