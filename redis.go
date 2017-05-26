@@ -292,7 +292,7 @@ func (this *RedisClient) zrange(command, key string, start, stop int, withscores
 
 	args := redis.Args{}.Add(key, start, stop)
 	if withscores {
-		args.Add("WITHSCORES")
+		args = args.Add("WITHSCORES")
 	}
 
 	return redis.Values(this.Conn.Do(command, args...))
