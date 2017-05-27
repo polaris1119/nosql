@@ -262,6 +262,10 @@ func (this *RedisClient) ZUNIONSTORE(dest string, keyNum int, keys []string, zse
 
 	dest = this.key(dest)
 
+	for i, key := range keys {
+		keys[i] = this.key(key)
+	}
+
 	args := redis.Args{}.Add(dest, keyNum).AddFlat(keys)
 	if zsetArgs != nil {
 		if len(zsetArgs.Weights) == len(keys) {
