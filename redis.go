@@ -287,6 +287,51 @@ func (this *RedisClient) ZRANGE(key string, start, stop int, withscores bool) ([
 	return this.zrange("ZRANGE", key, start, stop, withscores)
 }
 
+func (this *RedisClient) ZCARD(key string) int {
+	if this.err != nil {
+		return 0
+	}
+
+	key = this.key(key)
+
+	val, err := redis.Int(this.Conn.Do("ZCARD", key))
+	if err != nil {
+		return 0
+	}
+
+	return val
+}
+
+// ZREVRANK 返回排名，-1 表示 member 不存在或错误
+func (this *RedisClient) ZREVRANK(key string, member interface{}) int {
+	return this.zrank("ZREVRANK", key, member)
+}
+
+func (this *RedisClient) ZRANK(key string, member interface{}) int {
+	return this.zrank("ZRANK", key, member)
+}
+
+func (this *RedisClient) zrank(command, key string, member interface{}) int {
+	if this.err != nil {
+		return 0
+	}
+
+	key = this.key(key)
+
+	val, err := redis.Int(this.Conn.Do(command, key, member))
+	if err != nil {
+		return 0
+	}
+
+	return val + 1
+}
+
+func (this *RedisClient) Close() {
+	if this.Conn != nil {
+		this.Conn.Close()
+	}
+}
+
 func (this *RedisClient) zrange(command, key string, start, stop int, withscores bool) ([]interface{}, error) {
 	if this.err != nil {
 		return nil, this.err
@@ -300,12 +345,6 @@ func (this *RedisClient) zrange(command, key string, start, stop int, withscores
 	}
 
 	return redis.Values(this.Conn.Do(command, args...))
-}
-
-func (this *RedisClient) Close() {
-	if this.Conn != nil {
-		this.Conn.Close()
-	}
 }
 
 func (this *RedisClient) key(key string) string {
