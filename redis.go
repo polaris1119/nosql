@@ -302,6 +302,28 @@ func (this *RedisClient) ZCARD(key string) int {
 	return val
 }
 
+func (this *RedisClient) ZSCAN(key string, cursor interface{}, optionArgs ...interface{}) (uint64, []interface{}, error) {
+	if this.err != nil {
+		return 0, nil, this.err
+	}
+
+	key = this.key(key)
+
+	args := redis.Args{}.Add(key, cursor).AddFlat(optionArgs)
+	result, err := redis.Values(this.Conn.Do("ZSCAN", args...))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	newCursor, err := redis.Uint64(result[0], nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	data, err := redis.Values(result[1], nil)
+
+	return newCursor, data, err
+}
+
 // ZREVRANK 返回排名，-1 表示 member 不存在或错误
 func (this *RedisClient) ZREVRANK(key string, member interface{}) int {
 	return this.zrank("ZREVRANK", key, member)
