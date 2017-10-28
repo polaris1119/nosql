@@ -166,6 +166,36 @@ func (this *RedisClient) HSET(key, field, val string) error {
 	return err
 }
 
+func (this *RedisClient) HGET(key, field string) (string, error) {
+	if this.err != nil {
+		return "", this.err
+	}
+
+	key = this.key(key)
+
+	return redis.String(this.Conn.Do("HGET", key, field))
+}
+
+func (this *RedisClient) HLEN(key string) (int, error) {
+	if this.err != nil {
+		return 0, this.err
+	}
+
+	key = this.key(key)
+
+	return redis.Int(this.Conn.Do("HLEN", key))
+}
+
+func (this *RedisClient) HEXISTS(key, field string) (bool, error) {
+	if this.err != nil {
+		return false, this.err
+	}
+
+	key = this.key(key)
+
+	return redis.Bool(this.Conn.Do("HEXISTS", key, field))
+}
+
 func (this *RedisClient) HGETALL(key string) (map[string]string, error) {
 	if this.err != nil {
 		return nil, this.err
