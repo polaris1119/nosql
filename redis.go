@@ -215,6 +215,16 @@ func (this *RedisClient) INCR(key string) (int64, error) {
 	return redis.Int64(this.Conn.Do("INCR", key))
 }
 
+func (this *RedisClient) DECR(key string) (int64, error) {
+	if this.err != nil {
+		return 0, this.err
+	}
+
+	key = this.key(key)
+
+	return redis.Int64(this.Conn.Do("DECR", key))
+}
+
 func (this *RedisClient) HDEL(key, field string) error {
 	if this.err != nil {
 		return this.err
