@@ -2,6 +2,7 @@ package nosql
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -70,7 +71,12 @@ func redisDialTimeout(configMap map[string]string) (redis.Conn, error) {
 	readTimeout := time.Duration(goutils.MustInt(configMap["read_timeout"], 0)) * time.Second
 	writeTimeout := time.Duration(goutils.MustInt(configMap["write_timeout"], 0)) * time.Second
 
-	conn, err := redis.DialTimeout("tcp", configMap["host"]+":"+configMap["port"], connTimeout, readTimeout, writeTimeout)
+	redisHost := configMap["host"]
+	if _host := os.Getenv("REDIS_HOST"); _host != "" {
+		redisHost = _host
+	}
+
+	conn, err := redis.DialTimeout("tcp", redisHost+":"+configMap["port"], connTimeout, readTimeout, writeTimeout)
 	if err != nil {
 		return conn, err
 	}
