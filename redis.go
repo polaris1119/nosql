@@ -1,6 +1,7 @@
 package nosql
 
 import (
+	"errors"
 	"log"
 	"os"
 	"time"
@@ -392,6 +393,49 @@ func (this *RedisClient) zrank(command, key string, member interface{}) int {
 	}
 
 	return val + 1
+}
+
+func (this *RedisClient) SADD(key string, members ...string) (int, error) {
+	if this.err != nil {
+		return 0, this.err
+	}
+
+	if len(members) == 0 {
+		return 0, errors.New("illegal argument")
+	}
+
+	key = this.key(key)
+
+	args := redis.Args{}.Add(key).AddFlat(members)
+	return redis.Int(this.Conn.Do("SADD", args...))
+}
+
+func (this *RedisClient) SCARD(key string) (int, error) {
+	if this.err != nil {
+		return 0, this.err
+	}
+
+	key = this.key(key)
+
+	return redis.Int(this.Conn.Do("SCARD", key))
+}
+
+func (this *RedisClient) SUNIONSTORE(destination string, keys ...string) (int, error) {
+	if this.err != nil {
+		return 0, this.err
+	}
+
+	if len(keys) == 0 {
+		return 0, errors.New("illegal argument")
+	}
+
+	destination = this.key(destination)
+	for i, key := range keys {
+		keys[i] = this.key(key)
+	}
+
+	args := redis.Args{}.Add(destination).AddFlat(keys)
+	return redis.Int(this.Conn.Do("SUNIONSTORE", args...))
 }
 
 func (this *RedisClient) Close() {
