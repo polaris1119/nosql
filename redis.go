@@ -117,7 +117,7 @@ func (this *RedisClient) SET(key string, val interface{}, expireSeconds int) err
 
 	args := redis.Args{}.Add(key, val)
 	if expireSeconds != 0 {
-		args.Add("EX").Add(expireSeconds)
+		args = args.Add("EX").Add(expireSeconds)
 	}
 	_, err := redis.String(this.Conn.Do("SET", args...))
 	return err
